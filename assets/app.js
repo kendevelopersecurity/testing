@@ -1,0 +1,30 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getFirestore, collection, getDocs, doc, getDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { firebaseConfig } from "./firebase-config.js";
+const $=s=>document.querySelector(s);
+$("#year").textContent=new Date().getFullYear();
+$("#menuToggle").addEventListener("click",()=>$("#nav").classList.toggle("open"));
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const wa=(n,msg)=>`https://wa.me/${String(n||"").replace(/\D/g,"")}?text=${encodeURIComponent(msg)}`;
+let db, settings={whatsapp:"62895636069948"}, services=[];
+function cards(items){$("#serviceGrid").innerHTML=items.length?items.map(x=>`<article class="service-card">${x.imageUrl?`<img class="service-image" src="${esc(x.imageUrl)}" alt="${esc(x.title||"Layanan")}" loading="lazy">`:""}<div class="service-icon">${esc(x.icon||"✦")}</div><h3>${esc(x.title||"Layanan")}</h3><p>${esc(x.description||"")}</p><div class="muted">${esc(x.price||"")}</div><a href="#order" data-order-service="${esc(x.title||"")}">PESAN LAYANAN ↗</a></article>`).join(""):'<div class="empty-state">Layanan akan segera hadir.</div>';$("#orderService").innerHTML='<option value="">Pilih layanan</option>'+items.map(x=>`<option>${esc(x.title||"")}</option>`).join("");document.querySelectorAll("[data-order-service]").forEach(a=>a.onclick=()=>{$("#orderService").value=a.dataset.orderService})}
+function articles(items){$("#articleGrid").innerHTML=items.length?items.map(x=>`<article class="article-card">${x.imageUrl?`<img class="article-image" src="${esc(x.imageUrl)}" alt="${esc(x.title||"Artikel")}" loading="lazy">`:""}<span class="date">${esc(x.date||"KENDEVSEC JOURNAL")}</span><h3>${esc(x.title||"Artikel")}</h3><p>${esc(x.excerpt||"")}</p>${x.url?`<a href="${esc(x.url)}" target="_blank" rel="noopener">BACA SELENGKAPNYA ↗</a>`:""}</article>`).join(""):'<div class="empty-state">Artikel akan segera hadir.</div>'}
+function faqs(items){$("#faqList").innerHTML=items.map(x=>`<details class="faq-item"><summary>${esc(x.question||"Pertanyaan")}</summary><p>${esc(x.answer||"")}</p></details>`).join("")}
+function customSections(items){$("#customSections").innerHTML=items.filter(x=>x.active!==false).sort((a,b)=>(Number(a.sort)||0)-(Number(b.sort)||0)).map(x=>`<section class="custom-content-section"><div class="custom-content-inner"><div><span class="eyebrow">${esc(x.eyebrow||"KENDEVSEC / FEATURE")}</span><h2>${esc(x.heading||x.name||"")}</h2><p>${esc(x.body||"")}</p>${x.buttonText&&x.buttonUrl?`<a class="button primary" href="${esc(x.buttonUrl)}">${esc(x.buttonText)} ↗</a>`:""}</div>${x.imageUrl?`<img src="${esc(x.imageUrl)}" alt="${esc(x.heading||x.name||"")}" loading="lazy">`:""}</div></section>`).join("")}\nfunction testimonials(items){$("#testimonialGrid").innerHTML=items.map(x=>`<article class="testimonial-card">${x.imageUrl?`<img class="testimonial-image" src="${esc(x.imageUrl)}" alt="${esc(x.name||"Pelanggan")}" loading="lazy">`:""}<span class="quote">“</span><p>${esc(x.message||"")}</p><strong>${esc(x.name||"Pelanggan")}</strong><small>${esc(x.role||"")}</small></article>`).join("")}
+try{
+ const app=initializeApp(firebaseConfig);db=getFirestore(app);
+ const [ss,sv,ar,fs,ts,cs,sc]=await Promise.all(["settings"].map(async _=>getDoc(doc(db,"site","settings"))).concat(["services","articles","faqs","testimonials","categories","sections"].map(c=>getDocs(collection(db,c)))));
+ if(ss.exists()){settings={...settings,...ss.data()};const s=settings;
+ $("#brandName").textContent=s.brandName||"KENDEVSEC";$("#heroTitle").textContent=s.heroTitle||"Build your digital presence with confidence.";$("#heroText").textContent=s.heroText||$("#heroText").textContent;$("#aboutText").textContent=s.aboutText||$("#aboutText").textContent;$("#contactTitle").textContent=s.contactTitle||"Let's make it happen.";$("#contactEmail").textContent=s.email||"kendevelopersecurity@gmail.com";$("#contactInstagram").textContent=s.instagram||"@kendevsec";$("#whatsappLink").href=wa(s.whatsapp,"Halo KENDEVSEC, saya ingin konsultasi.");
+ if(s.announcementEnabled&&s.announcementText){$("#announcement").textContent=s.announcementText;$("#announcement").classList.remove("hidden")}
+ if(s.maintenance){$("#maintenance").classList.remove("hidden");document.querySelector("main").classList.add("hidden")}
+ if(s.seoTitle)document.title=s.seoTitle;
+ }
+ services=sv.docs.map(d=>({id:d.id,...d.data()}));cards(services.filter(x=>x.active!==false));articles(ar.docs.map(d=>d.data()).filter(x=>x.published!==false));faqs(fs.docs.map(d=>d.data()));testimonials(ts.docs.map(d=>d.data()).filter(x=>x.active!==false));customSections(sc.docs.map(d=>d.data()));
+ $("#orderForm").addEventListener("submit",async e=>{e.preventDefault();const fd=new FormData(e.target),data=Object.fromEntries(fd.entries());const feedback=$("#orderFeedback");feedback.textContent="Mengirim permintaan...";
+ try{const coupon=(data.coupon||"").trim().toUpperCase();let discount=0;if(coupon){const q=await getDocs(collection(db,"coupons"));const found=q.docs.map(d=>d.data()).find(x=>(x.code||"").toUpperCase()===coupon&&x.active);if(!found)throw new Error("Kode promo tidak valid.");discount=Number(found.discount||0)}
+ await addDoc(collection(db,"orders"),{customer:data.customer,phone:data.phone,service:data.service,message:data.message||"",coupon,discount,status:"new",createdAt:serverTimestamp()});
+ feedback.textContent="Permintaan tersimpan. WhatsApp akan dibuka...";const msg=`Halo KENDEVSEC, saya ${data.customer}. Saya ingin memesan ${data.service}. Detail: ${data.message||"-"}. Kode promo: ${coupon||"-"}.`;window.open(wa(settings.whatsapp,msg),"_blank","noopener");e.target.reset();
+ }catch(err){feedback.textContent=err.message||"Gagal mengirim. Silakan coba lagi."}
+ });
+}catch(e){console.warn("Firebase belum dikonfigurasi / data belum tersedia:",e);cards([]);articles([]);faqs([]);testimonials([])}
